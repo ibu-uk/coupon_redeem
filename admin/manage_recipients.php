@@ -248,7 +248,7 @@ $query = "SELECT
             'redemption_log' as source
           FROM redemption_logs 
           WHERE recipient_name IS NOT NULL AND recipient_name != ''
-          GROUP BY recipient_name, recipient_civil_id
+          GROUP BY recipient_name, recipient_civil_id, recipient_mobile, recipient_file_number
           ORDER BY MAX(id) DESC";
 $stmt = $db->prepare($query);
 $stmt->execute();
