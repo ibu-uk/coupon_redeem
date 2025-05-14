@@ -431,8 +431,8 @@ class Coupon {
         // Calculate offset
         $offset = ($page - 1) * $limit;
         
-        // Query to select all records with search, including recipient info and count
-        $query = "SELECT c.*, ct.name as coupon_type_name,
+        // Base query for both search and non-search scenarios
+        $baseQuery = "SELECT c.*, ct.name as coupon_type_name,
                          b.full_name as buyer_name, 
                          COALESCE(r.full_name, 
                             (SELECT rl.recipient_name FROM redemption_logs rl 
@@ -443,10 +443,9 @@ class Coupon {
                          (SELECT COUNT(*) FROM redemption_logs WHERE coupon_id = c.id) as redemption_count,
                          (SELECT COUNT(DISTINCT recipient_name) FROM redemption_logs WHERE coupon_id = c.id) as unique_recipients,
                          CASE 
-                            WHEN c.status = 'assigned' THEN 1
-                            WHEN c.recipient_id IS NOT NULL THEN 1
-                            WHEN (SELECT COUNT(*) FROM redemption_logs WHERE coupon_id = c.id) > 0 THEN 1
-                            ELSE 0
+                             WHEN c.recipient_id IS NOT NULL THEN 1
+                             WHEN (SELECT COUNT(*) FROM redemption_logs WHERE coupon_id = c.id) > 0 THEN 1
+                             ELSE 0
                          END as has_recipients
                   FROM " . $this->table_name . " c
                   LEFT JOIN coupon_types ct ON c.coupon_type_id = ct.id
@@ -456,24 +455,42 @@ class Coupon {
                       SELECT coupon_id, COUNT(*) as log_count 
                       FROM redemption_logs 
                       GROUP BY coupon_id
-                  ) rl ON c.id = rl.coupon_id
+                  ) rl ON c.id = rl.coupon_id";
+        
+        // Prepare statement based on whether search is empty or not
+        if(empty($search)) {
+            // No search term - show all coupons
+            $query = $baseQuery . " 
+                  ORDER BY ct.name ASC, SUBSTRING(c.code, 1, 1) ASC, CAST(SUBSTRING(c.code, 2) AS UNSIGNED) ASC
+                  LIMIT ?, ?";
+                  
+            // Prepare query statement
+            $stmt = $this->conn->prepare($query);
+            
+            // Bind only pagination parameters
+            $stmt->bindParam(1, $offset, PDO::PARAM_INT);
+            $stmt->bindParam(2, $limit, PDO::PARAM_INT);
+        } else {
+            // Search term provided - filter results
+            $query = $baseQuery . " 
                   WHERE c.code LIKE ? OR b.full_name LIKE ? OR 
                         c.id IN (SELECT coupon_id FROM redemption_logs WHERE recipient_name LIKE ?)
                   ORDER BY ct.name ASC, SUBSTRING(c.code, 1, 1) ASC, CAST(SUBSTRING(c.code, 2) AS UNSIGNED) ASC
                   LIMIT ?, ?";
-        
-        // Prepare query statement
-        $stmt = $this->conn->prepare($query);
-        
-        // Sanitize search term
-        $searchTerm = "%" . htmlspecialchars(strip_tags($search)) . "%";
-        
-        // Bind values
-        $stmt->bindParam(1, $searchTerm);
-        $stmt->bindParam(2, $searchTerm);
-        $stmt->bindParam(3, $searchTerm);
-        $stmt->bindParam(4, $offset, PDO::PARAM_INT);
-        $stmt->bindParam(5, $limit, PDO::PARAM_INT);
+                  
+            // Prepare query statement
+            $stmt = $this->conn->prepare($query);
+            
+            // Sanitize search term
+            $searchTerm = "%" . htmlspecialchars(strip_tags($search)) . "%";
+            
+            // Bind search and pagination parameters
+            $stmt->bindParam(1, $searchTerm);
+            $stmt->bindParam(2, $searchTerm);
+            $stmt->bindParam(3, $searchTerm);
+            $stmt->bindParam(4, $offset, PDO::PARAM_INT);
+            $stmt->bindParam(5, $limit, PDO::PARAM_INT);
+        }
         
         // Execute query
         $stmt->execute();

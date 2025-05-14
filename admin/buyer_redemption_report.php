@@ -389,17 +389,6 @@ include_once '../includes/header.php';
                         <h5 class="card-title mb-0">
                             Redemption History for Coupon <?php echo $coupon->code; ?>
                         </h5>
-                        <div class="export-buttons no-print">
-                            <button class="btn btn-sm btn-success" onclick="exportTableToExcel('redemptionTable', 'redemption_history')">
-                                <i class="fas fa-file-excel"></i> Export to Excel
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="exportTableToPDF('redemptionTable', 'redemption_history')">
-                                <i class="fas fa-file-pdf"></i> Export to PDF
-                            </button>
-                            <button class="btn btn-sm btn-primary" onclick="window.print()">
-                                <i class="fas fa-print"></i> Print
-                            </button>
-                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -424,7 +413,20 @@ include_once '../includes/header.php';
                         </div>
                     </div>
                     
-                    <h5 class="mt-4 mb-3">Redemption Transactions</h5>
+                    <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+                        <h5 class="mb-0">Redemption Transactions</h5>
+                        <div class="export-buttons no-print">
+                            <button class="btn btn-sm btn-success" onclick="exportTableToExcel('redemptionTable', 'redemption_history')">
+                                <i class="fas fa-file-excel"></i> Export to Excel
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="exportCouponRedemptionToPDF()">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="printCouponRedemption()">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped" id="redemptionTable">
                             <thead>
@@ -482,47 +484,288 @@ include_once '../includes/header.php';
     </div>
 <?php endif; ?>
 
+<!-- Coupon Redemption Print View - Hidden on screen but visible in print -->
+<div class="coupon-redemption-print print-only" style="display: none;" id="couponRedemptionPrint">
+    <div class="buyer-info-header">BATO CLINIC - COUPON MANAGEMENT</div>
+    <h3 style="text-align: center;">Redemption History for Coupon <?php echo $coupon->code; ?></h3>
+    <p style="text-align: center;">Generated on: <?php echo date('Y-m-d H:i'); ?></p>
+    
+    <div class="row" style="margin-top: 20px;">
+        <div class="col-md-6" style="width: 50%; float: left;">
+            <h4>Coupon Details</h4>
+            <table class="buyer-info-table">
+                <tr>
+                    <th>Code:</th>
+                    <td><?php echo $coupon->code; ?></td>
+                </tr>
+                <tr>
+                    <th>Type:</th>
+                    <td><?php echo $coupon->coupon_type_name; ?></td>
+                </tr>
+                <tr>
+                    <th>Initial Balance:</th>
+                    <td><?php echo number_format($coupon->initial_balance, 2); ?> KD</td>
+                </tr>
+                <tr>
+                    <th>Current Balance:</th>
+                    <td><?php echo number_format($coupon->current_balance, 2); ?> KD</td>
+                </tr>
+                <tr>
+                    <th>Used Amount:</th>
+                    <td><?php echo number_format($coupon->initial_balance - $coupon->current_balance, 2); ?> KD</td>
+                </tr>
+            </table>
+        </div>
+        <div class="col-md-6" style="width: 50%; float: left;">
+            <h4>Buyer Information</h4>
+            <table class="buyer-info-table">
+                <tr>
+                    <th>Name:</th>
+                    <td><?php echo $coupon->buyer_name; ?></td>
+                </tr>
+                <tr>
+                    <th>Civil ID:</th>
+                    <td><?php echo $coupon->buyer_civil_id; ?></td>
+                </tr>
+                <tr>
+                    <th>Mobile:</th>
+                    <td><?php echo $coupon->buyer_mobile; ?></td>
+                </tr>
+                <tr>
+                    <th>File Number:</th>
+                    <td><?php echo $coupon->buyer_file_number; ?></td>
+                </tr>
+                <tr>
+                    <th>Issue Date:</th>
+                    <td><?php echo date('Y-m-d', strtotime($coupon->issue_date)); ?></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <div style="clear: both; margin-top: 20px;">
+        <h4>Redemption Transactions</h4>
+        <table class="table table-bordered" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #007bff; color: white;">
+                    <th style="border: 1px solid #dee2e6; padding: 8px;">Date & Time</th>
+                    <th style="border: 1px solid #dee2e6; padding: 8px;">Recipient Details</th>
+                    <th style="border: 1px solid #dee2e6; padding: 8px;">Service Information</th>
+                    <th style="border: 1px solid #dee2e6; padding: 8px;">Amount</th>
+                    <th style="border: 1px solid #dee2e6; padding: 8px;">Remaining Balance</th>
+                    <th style="border: 1px solid #dee2e6; padding: 8px;">Redeemed By</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($redemptionLogs as $log): ?>
+                    <tr>
+                        <td style="border: 1px solid #dee2e6; padding: 8px;">
+                            <strong><?php echo date('Y-m-d', strtotime($log['redemption_date'])); ?></strong><br>
+                            <small><?php echo date('h:i A', strtotime($log['redemption_time'])); ?></small>
+                        </td>
+                        <td style="border: 1px solid #dee2e6; padding: 8px;">
+                            <strong><?php echo $log['recipient_name']; ?></strong><br>
+                            <small>
+                                <strong>Civil ID:</strong> <?php echo $log['recipient_civil_id']; ?><br>
+                                <strong>Mobile:</strong> <?php echo $log['recipient_mobile']; ?><br>
+                                <?php if (!empty($log['recipient_file_number'])): ?>
+                                <strong>File Number:</strong> <?php echo $log['recipient_file_number']; ?>
+                                <?php endif; ?>
+                            </small>
+                        </td>
+                        <td style="border: 1px solid #dee2e6; padding: 8px;">
+                            <strong><?php echo $log['service_name']; ?></strong><br>
+                            <small><?php echo $log['service_description']; ?></small>
+                        </td>
+                        <td style="border: 1px solid #dee2e6; padding: 8px; color: #dc3545;">
+                            <strong><?php echo number_format($log['amount'], 2); ?> KD</strong>
+                        </td>
+                        <td style="border: 1px solid #dee2e6; padding: 8px;">
+                            <strong><?php echo number_format($log['remaining_balance'], 2); ?> KD</strong>
+                        </td>
+                        <td style="border: 1px solid #dee2e6; padding: 8px;">
+                            <?php echo $log['redeemer_name']; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <!-- Add necessary scripts for export functionality -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-    // Export to Excel function - simplified and more reliable
+    // Export to Excel function
     function exportTableToExcel(tableID, filename = '') {
-        // Get the table
+        const downloadLink = document.createElement("a");
+        const dataType = 'application/vnd.ms-excel';
         const table = document.getElementById(tableID);
+        const tableHTML = table.outerHTML.replace(/ /g, '%20');
         
-        // Create a workbook
-        const wb = XLSX.utils.book_new();
+        filename = filename ? filename + '.xls' : 'excel_data.xls';
         
-        // Create buyer info table
-        const buyerInfoData = [
-            ["BATO CLINIC - COUPON MANAGEMENT"],
-            ["Buyer Redemption Report"],
-            ["Generated on: " + new Date().toLocaleDateString()],
-            [""],
-            ["Buyer Information:"],
-            ["Buyer Name:", "<?php echo $buyerDetails['full_name']; ?>"],
-            ["Civil ID:", "<?php echo $buyerDetails['civil_id']; ?>"],
-            ["Mobile Number:", "<?php echo $buyerDetails['mobile_number']; ?>"],
-            ["File Number:", "<?php echo $buyerDetails['file_number']; ?>"],
-            ["Total Coupons:", "<?php echo $buyerDetails['total_coupons']; ?>"],
-            ["Total Initial Balance:", "<?php echo number_format($buyerDetails['total_initial_balance'], 2); ?> KD"],
-            ["Total Current Balance:", "<?php echo number_format($buyerDetails['total_current_balance'], 2); ?> KD"],
-            ["Total Used Amount:", "<?php echo number_format($buyerDetails['total_used_amount'], 2); ?> KD"],
-            [""]
+        // Create download link element
+        downloadLink.href = 'data:' + dataType + ', ' + tableHTML;
+        downloadLink.download = filename;
+        
+        // Triggering the function
+        downloadLink.click();
+    }
+    
+    // Print Coupon Redemption History
+    function printCouponRedemption() {
+        const printContents = document.getElementById('couponRedemptionPrint').innerHTML;
+        const originalContents = document.body.innerHTML;
+        
+        document.body.innerHTML = `
+            <html>
+                <head>
+                    <title>Redemption History for Coupon <?php echo $coupon->code; ?></title>
+                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+                    <style>
+                        @media print {
+                            body {
+                                padding: 20px;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                            }
+                            th, td {
+                                border: 1px solid #dee2e6;
+                                padding: 8px;
+                                text-align: left;
+                            }
+                            th {
+                                background-color: #007bff !important;
+                                color: white !important;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${printContents}
+                </body>
+            </html>
+        `;
+        
+        window.print();
+        document.body.innerHTML = originalContents;
+        location.reload();
+    }
+    
+    // Export Coupon Redemption to PDF
+    function exportCouponRedemptionToPDF() {
+        window.jspdf.jsPDF = window.jspdf.jsPDF;
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Add title
+        doc.setFontSize(16);
+        doc.text('BATO CLINIC - COUPON MANAGEMENT', 14, 20);
+        doc.setFontSize(14);
+        doc.text('Redemption History for Coupon <?php echo $coupon->code; ?>', 14, 30);
+        
+        // Add date
+        doc.setFontSize(10);
+        doc.text('Generated on: ' + new Date().toLocaleDateString(), 14, 40);
+        
+        // Add coupon information
+        doc.setFontSize(12);
+        doc.text('Coupon Information:', 14, 50);
+        
+        // Create a table for coupon information
+        const couponData = [
+            ['Code:', '<?php echo $coupon->code; ?>'],
+            ['Type:', '<?php echo $coupon->coupon_type_name; ?>'],
+            ['Initial Balance:', '<?php echo number_format($coupon->initial_balance, 2); ?> KD'],
+            ['Current Balance:', '<?php echo number_format($coupon->current_balance, 2); ?> KD'],
+            ['Used Amount:', '<?php echo number_format($coupon->initial_balance - $coupon->current_balance, 2); ?> KD']
         ];
         
-        // Add buyer info to workbook
-        const buyerWS = XLSX.utils.aoa_to_sheet(buyerInfoData);
-        XLSX.utils.book_append_sheet(wb, buyerWS, "Buyer Info");
+        doc.autoTable({
+            startY: 55,
+            head: [['Information', 'Details']],
+            body: couponData,
+            theme: 'grid',
+            headStyles: {
+                fillColor: [0, 123, 255],
+                textColor: [255, 255, 255],
+                fontSize: 10
+            },
+            styles: {
+                fontSize: 9
+            },
+            columnStyles: {
+                0: {fontStyle: 'bold', cellWidth: 60},
+                1: {cellWidth: 80}
+            }
+        });
         
-        // Convert table to worksheet
-        const ws = XLSX.utils.table_to_sheet(table);
-        XLSX.utils.book_append_sheet(wb, ws, "Redemptions");
+        // Add buyer information
+        const finalY1 = (doc.lastAutoTable.finalY || 50) + 10;
+        doc.text('Buyer Information:', 14, finalY1);
         
-        // Generate Excel file
-        XLSX.writeFile(wb, filename + '.xlsx');
+        // Create a table for buyer information
+        const buyerData = [
+            ['Name:', '<?php echo $coupon->buyer_name; ?>'],
+            ['Civil ID:', '<?php echo $coupon->buyer_civil_id; ?>'],
+            ['Mobile:', '<?php echo $coupon->buyer_mobile; ?>'],
+            ['File Number:', '<?php echo $coupon->buyer_file_number; ?>'],
+            ['Issue Date:', '<?php echo date("Y-m-d", strtotime($coupon->issue_date)); ?>']
+        ];
+        
+        doc.autoTable({
+            startY: finalY1 + 5,
+            head: [['Information', 'Details']],
+            body: buyerData,
+            theme: 'grid',
+            headStyles: {
+                fillColor: [0, 123, 255],
+                textColor: [255, 255, 255],
+                fontSize: 10
+            },
+            styles: {
+                fontSize: 9
+            },
+            columnStyles: {
+                0: {fontStyle: 'bold', cellWidth: 60},
+                1: {cellWidth: 80}
+            }
+        });
+        
+        // Add redemption transactions
+        const finalY2 = (doc.lastAutoTable.finalY || 50) + 10;
+        doc.text('Redemption Transactions:', 14, finalY2);
+        
+        // Add redemption table
+        doc.autoTable({ 
+            html: '#redemptionTable',
+            startY: finalY2 + 5,
+            styles: {
+                fontSize: 8
+            },
+            columnStyles: {
+                0: {cellWidth: 25}, // Date & Time
+                1: {cellWidth: 35}, // Recipient Details
+                2: {cellWidth: 35}, // Service Information
+                3: {cellWidth: 20}, // Amount
+                4: {cellWidth: 25}, // Remaining Balance
+                5: {cellWidth: 30}  // Redeemed By
+            },
+            headStyles: {
+                fillColor: [0, 123, 255],
+                textColor: [255, 255, 255]
+            }
+        });
+        
+        // Save the PDF
+        doc.save('Coupon_<?php echo $coupon->code; ?>_Redemption_History.pdf');
     }
     
     // Export to PDF function - simplified and more reliable

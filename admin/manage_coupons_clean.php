@@ -137,13 +137,7 @@ include_once '../includes/header.php';
                                                 <?php echo $row['coupon_type_name']; ?>
                                             </span>
                                         </td>
-                                        <td>
-                                            <?php if($row['buyer_name']): ?>
-                                                <span class="badge bg-primary"><?php echo $row['buyer_name']; ?></span>
-                                            <?php else: ?>
-                                                <span class="text-muted">Not assigned</span>
-                                            <?php endif; ?>
-                                        </td>
+                                        <td><?php echo $row['buyer_name'] ? $row['buyer_name'] : '<span class="text-muted">Not assigned</span>'; ?></td>
                                         <td>
                                             <?php if($row['has_recipients'] == 1): ?>
                                                 <?php
@@ -200,8 +194,6 @@ include_once '../includes/header.php';
                                             <?php 
                                             $statusClass = 'bg-secondary';
                                             if($row['status'] == 'active') {
-                                                $statusClass = 'bg-success';
-                                            } elseif($row['status'] == 'assigned') {
                                                 $statusClass = 'bg-success';
                                             } elseif($row['status'] == 'redeemed') {
                                                 $statusClass = 'bg-info';

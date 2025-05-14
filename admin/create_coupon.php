@@ -155,13 +155,13 @@ include_once '../includes/header.php';
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="buyer_name" class="form-label">Full Name</label>
-                                <input type="text" class="form-control" id="buyer_name" name="buyer_name" required>
+                                <input type="text" class="form-control" id="buyer_name" name="buyer_name" value="<?php echo isset($_POST['buyer_name']) ? htmlspecialchars($_POST['buyer_name']) : ''; ?>" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="buyer_civil_id" class="form-label">Civil ID</label>
-                                <input type="text" class="form-control" id="buyer_civil_id" name="buyer_civil_id" required>
+                                <input type="text" class="form-control" id="buyer_civil_id" name="buyer_civil_id" value="<?php echo isset($_POST['buyer_civil_id']) ? htmlspecialchars($_POST['buyer_civil_id']) : ''; ?>" required>
                             </div>
                         </div>
                     </div>
@@ -170,13 +170,13 @@ include_once '../includes/header.php';
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="buyer_mobile" class="form-label">Mobile Number</label>
-                                <input type="text" class="form-control" id="buyer_mobile" name="buyer_mobile" required>
+                                <input type="text" class="form-control" id="buyer_mobile" name="buyer_mobile" value="<?php echo isset($_POST['buyer_mobile']) ? htmlspecialchars($_POST['buyer_mobile']) : ''; ?>" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="buyer_email" class="form-label">Email <small class="text-muted">(Optional)</small></label>
-                                <input type="email" class="form-control" id="buyer_email" name="buyer_email">
+                                <input type="email" class="form-control" id="buyer_email" name="buyer_email" value="<?php echo isset($_POST['buyer_email']) ? htmlspecialchars($_POST['buyer_email']) : ''; ?>">
                             </div>
                         </div>
                     </div>
@@ -185,7 +185,7 @@ include_once '../includes/header.php';
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="buyer_file_number" class="form-label">File Number (clinic system)</label>
-                                <input type="text" class="form-control" id="buyer_file_number" name="buyer_file_number" required>
+                                <input type="text" class="form-control" id="buyer_file_number" name="buyer_file_number" value="<?php echo isset($_POST['buyer_file_number']) ? htmlspecialchars($_POST['buyer_file_number']) : ''; ?>" required>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -278,12 +278,92 @@ include_once '../includes/header.php';
             });
         });
         
+        // AJAX validation for fields that need to be unique
+        const civilIdInput = document.getElementById('buyer_civil_id');
+        const mobileInput = document.getElementById('buyer_mobile');
+        const fileNumberInput = document.getElementById('buyer_file_number');
+        const emailInput = document.getElementById('buyer_email');
+        
+        // Function to check if a field value already exists
+        function checkFieldExists(field, value, fieldName) {
+            // Create a feedback element if it doesn't exist
+            let feedbackId = `${field.id}_feedback`;
+            let feedbackElement = document.getElementById(feedbackId);
+            
+            if (!feedbackElement) {
+                feedbackElement = document.createElement('div');
+                feedbackElement.id = feedbackId;
+                feedbackElement.className = 'invalid-feedback';
+                field.parentNode.appendChild(feedbackElement);
+            }
+            
+            // Don't check empty values
+            if (!value.trim()) {
+                field.classList.remove('is-invalid');
+                field.classList.remove('is-valid');
+                return;
+            }
+            
+            // Make AJAX request to check if field exists
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '../ajax/check_field_exists.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            
+            xhr.onload = function() {
+                if (this.status === 200) {
+                    const response = JSON.parse(this.responseText);
+                    
+                    if (response.exists) {
+                        field.classList.add('is-invalid');
+                        field.classList.remove('is-valid');
+                        feedbackElement.textContent = `This ${fieldName} is already in use. Please use a different one.`;
+                        feedbackElement.style.display = 'block';
+                    } else {
+                        field.classList.remove('is-invalid');
+                        field.classList.add('is-valid');
+                        feedbackElement.style.display = 'none';
+                    }
+                }
+            };
+            
+            xhr.send(`field=${encodeURIComponent(fieldName)}&value=${encodeURIComponent(value)}`);
+        }
+        
+        // Add blur event listeners to check fields when user leaves the field
+        civilIdInput.addEventListener('blur', function() {
+            checkFieldExists(this, this.value, 'civil_id');
+        });
+        
+        mobileInput.addEventListener('blur', function() {
+            checkFieldExists(this, this.value, 'mobile_number');
+        });
+        
+        fileNumberInput.addEventListener('blur', function() {
+            checkFieldExists(this, this.value, 'file_number');
+        });
+        
+        emailInput.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                checkFieldExists(this, this.value, 'email');
+            }
+        });
+        
         // Form validation
         const form = document.getElementById('createCouponForm');
         form.addEventListener('submit', function(event) {
+            // Check if a coupon is selected
             if(!couponIdInput.value) {
                 event.preventDefault();
                 alert('Please select a coupon');
+                return;
+            }
+            
+            // Check if any field has the is-invalid class
+            const invalidFields = form.querySelectorAll('.is-invalid');
+            if (invalidFields.length > 0) {
+                event.preventDefault();
+                alert('Please fix the highlighted errors before submitting the form.');
+                invalidFields[0].focus();
             }
         });
     });

@@ -233,8 +233,8 @@ class RedemptionLog {
         // Query to get dashboard statistics
         $query = "SELECT 
                     COUNT(DISTINCT c.id) as total_coupons,
-                    COUNT(DISTINCT CASE WHEN c.buyer_id IS NOT NULL THEN c.id END) as assigned_coupons,
-                    COUNT(DISTINCT CASE WHEN c.recipient_id IS NOT NULL THEN c.id END) as assigned_recipients,
+                    COUNT(DISTINCT CASE WHEN c.buyer_id IS NOT NULL OR c.recipient_id IS NOT NULL OR EXISTS (SELECT 1 FROM redemption_logs rl WHERE rl.coupon_id = c.id) THEN c.id END) as assigned_coupons,
+                    COUNT(DISTINCT CASE WHEN c.recipient_id IS NOT NULL OR EXISTS (SELECT 1 FROM redemption_logs rl WHERE rl.coupon_id = c.id) THEN c.id END) as assigned_recipients,
                     COUNT(DISTINCT CASE WHEN c.status = 'fully_redeemed' THEN c.id END) as fully_redeemed,
                     COUNT(DISTINCT CASE WHEN c.status = 'available' THEN c.id END) as available_coupons,
                     COUNT(DISTINCT CASE WHEN c.status = 'assigned' THEN c.id END) as active_coupons,

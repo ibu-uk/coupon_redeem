@@ -309,6 +309,23 @@ $buyers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 include_once '../includes/header.php';
 ?>
 
+<style>
+    /* Custom badge styles for gold and silver coupons */
+    .badge-gold {
+        background-color: #FFD700;
+        color: #000;
+    }
+    .badge-silver {
+        background-color: #C0C0C0;
+        color: #000;
+    }
+    .coupon-badges {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+</style>
+
 <div class="container mt-4">
     <div class="row">
         <div class="col-md-12">
@@ -375,10 +392,11 @@ include_once '../includes/header.php';
                                             <td><?php echo $recipient['email']; ?></td>
                                             <td><?php echo $recipient['civil_id']; ?></td>
                                             <td><?php echo $recipient['mobile_number']; ?></td>
+                                            <td><?php echo $recipient['file_number']; ?></td>
                                             <td>
                                                 <?php
                                                 if (isset($recipient['id'])) {
-                                                    // Get assigned coupons with details
+                                                    // First check direct coupon assignments
                                                     $query = "SELECT c.id, c.code, c.current_balance, ct.name as type_name 
                                                               FROM coupons c 
                                                               LEFT JOIN coupon_types ct ON c.coupon_type_id = ct.id 
@@ -388,18 +406,90 @@ include_once '../includes/header.php';
                                                     $stmt->execute();
                                                     $coupons = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                                     
-                                                    if (count($coupons) > 0) {
-                                                        echo '<ul class="list-unstyled mb-0">';
-                                                        foreach ($coupons as $coupon) {
-                                                            echo '<li><span class="badge bg-info">' . $coupon['code'] . '</span> ' . 
-                                                                 '<small>(' . $coupon['type_name'] . ' - ' . $coupon['current_balance'] . ' KD)</small></li>';
+                                                    // Also check redemption logs for this recipient
+                                                    // Use the correct fields from redemption_logs
+                                                    $query2 = "SELECT DISTINCT c.id, c.code, c.current_balance, ct.name as type_name 
+                                                               FROM redemption_logs rl
+                                                               JOIN coupons c ON rl.coupon_id = c.id
+                                                               LEFT JOIN coupon_types ct ON c.coupon_type_id = ct.id
+                                                               WHERE (rl.recipient_civil_id = ? OR rl.recipient_mobile = ?)
+                                                               GROUP BY c.id";
+                                                    $stmt2 = $db->prepare($query2);
+                                                    $stmt2->bindParam(1, $recipient['civil_id']);
+                                                    $stmt2->bindParam(2, $recipient['mobile_number']);
+                                                    $stmt2->execute();
+                                                    $redemptionCoupons = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+                                                    
+                                                    // Merge the results, avoiding duplicates
+                                                    $couponIds = array_column($coupons, 'id');
+                                                    foreach ($redemptionCoupons as $coupon) {
+                                                        if (!in_array($coupon['id'], $couponIds)) {
+                                                            $coupons[] = $coupon;
+                                                            $couponIds[] = $coupon['id'];
                                                         }
-                                                        echo '</ul>';
+                                                    }
+                                                    
+                                                    if (count($coupons) > 0) {
+                                                        echo '<div class="coupon-badges">';
+                                                        foreach ($coupons as $coupon) {
+                                                            // Determine badge color based on coupon code
+                                                            $badgeClass = 'bg-info';
+                                                            $firstLetter = strtoupper(substr($coupon['code'], 0, 1));
+                                                            if ($firstLetter == 'B') {
+                                                                $badgeClass = 'bg-dark'; // Black coupons
+                                                            } elseif ($firstLetter == 'G') {
+                                                                $badgeClass = 'badge-gold'; // Gold coupons
+                                                            } elseif ($firstLetter == 'S') {
+                                                                $badgeClass = 'badge-silver'; // Silver coupons
+                                                            }
+                                                            
+                                                            echo '<div class="mb-2">';
+                                                            echo '<span class="badge ' . $badgeClass . ' me-1" style="font-size: 0.9rem;">' . $coupon['code'] . '</span>';
+                                                            echo '<span class="badge bg-secondary">' . $coupon['type_name'] . '</span>';
+                                                            echo '</div>';
+                                                        }
+                                                        echo '</div>';
                                                     } else {
                                                         echo '<span class="text-muted">None</span>';
                                                     }
                                                 } else {
-                                                    echo 'N/A';
+                                                    // For recipients from redemption logs, show coupons they've used
+                                                    // First try by civil ID and mobile number
+                                                    $query = "SELECT DISTINCT c.id, c.code, c.current_balance, ct.name as type_name 
+                                                              FROM redemption_logs rl
+                                                              JOIN coupons c ON rl.coupon_id = c.id
+                                                              LEFT JOIN coupon_types ct ON c.coupon_type_id = ct.id
+                                                              WHERE rl.recipient_civil_id = ? OR rl.recipient_mobile = ?
+                                                              GROUP BY c.id";
+                                                    $stmt = $db->prepare($query);
+                                                    $stmt->bindParam(1, $recipient['civil_id']);
+                                                    $stmt->bindParam(2, $recipient['mobile_number']);
+                                                    $stmt->execute();
+                                                    $coupons = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                                    
+                                                    if (count($coupons) > 0) {
+                                                        echo '<div class="coupon-badges">';
+                                                        foreach ($coupons as $coupon) {
+                                                            // Determine badge color based on coupon code
+                                                            $badgeClass = 'bg-info';
+                                                            $firstLetter = strtoupper(substr($coupon['code'], 0, 1));
+                                                            if ($firstLetter == 'B') {
+                                                                $badgeClass = 'bg-dark'; // Black coupons
+                                                            } elseif ($firstLetter == 'G') {
+                                                                $badgeClass = 'badge-gold'; // Gold coupons
+                                                            } elseif ($firstLetter == 'S') {
+                                                                $badgeClass = 'badge-silver'; // Silver coupons
+                                                            }
+                                                            
+                                                            echo '<div class="mb-2">';
+                                                            echo '<span class="badge ' . $badgeClass . ' me-1" style="font-size: 0.9rem;">' . $coupon['code'] . '</span>';
+                                                            echo '<span class="badge bg-secondary">' . $coupon['type_name'] . '</span>';
+                                                            echo '</div>';
+                                                        }
+                                                        echo '</div>';
+                                                    } else {
+                                                        echo '<span class="text-muted">From redemption logs</span>';
+                                                    }
                                                 }
                                                 ?>
                                             </td>

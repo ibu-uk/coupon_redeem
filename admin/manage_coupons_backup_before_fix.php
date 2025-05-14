@@ -65,6 +65,11 @@ $coupons->execute();
 // Get total count for display
 $totalCoupons = $coupons->rowCount();
 
+// Initialize variables for debug info
+$page = 1; // Since we're showing all coupons at once
+$limit = $totalCoupons; // All coupons are shown
+$totalPages = 1; // Only one page since all coupons are shown
+
 // Debug information
 $debug_info = [];
 $debug_info['page'] = $page;
@@ -261,95 +266,127 @@ include_once '../includes/header.php';
         
         // Function to fetch coupon details for printing
         function fetchCouponDetails(couponId) {
-            const modal = new bootstrap.Modal(document.getElementById('printCouponModal'));
-            modal.show();
-            
-            // Show loading state
-            document.getElementById('printCouponModalBody').innerHTML = `
-                <div class="text-center">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
+            try {
+                const modal = new bootstrap.Modal(document.getElementById('printCouponModal'));
+                modal.show();
+                
+                // Show loading state
+                document.getElementById('printCouponModalBody').innerHTML = `
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading coupon details...</p>
                     </div>
-                    <p class="mt-2">Loading coupon details...</p>
-                </div>
-            `;
-            
-            fetch('<?php echo BASE_URL; ?>admin/api/get_coupon.php?id=' + couponId)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok: ' + response.status);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if(data.success) {
-                        const coupon = data.coupon;
-                        const modalBody = document.getElementById('printCouponModalBody');
-                        
-                        modalBody.innerHTML = `
-                            <div class="coupon-print-container">
-                                <div class="coupon-header">
-                                    <h3>${coupon.code}</h3>
-                                    <div class="coupon-type ${coupon.coupon_type_name.toLowerCase()}">${coupon.coupon_type_name}</div>
-                                </div>
-                                <div class="coupon-details">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <p><strong>Initial Balance:</strong> ${parseFloat(coupon.initial_balance).toFixed(2)} KD</p>
-                                            <p><strong>Current Balance:</strong> ${parseFloat(coupon.current_balance).toFixed(2)} KD</p>
-                                            <p><strong>Issue Date:</strong> ${coupon.issue_date}</p>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <p><strong>Status:</strong> ${coupon.status}</p>
-                                            <p><strong>Buyer:</strong> ${coupon.buyer_name || 'Not assigned'}</p>
-                                            <p><strong>Recipient:</strong> ${coupon.recipient_name || 'Not assigned'}</p>
+                `;
+                
+                // Fetch coupon details with proper error handling
+                fetch('<?php echo BASE_URL; ?>admin/api/get_coupon.php?id=' + couponId)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok: ' + response.status);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if(data && data.success && data.coupon) {
+                            const coupon = data.coupon;
+                            const modalBody = document.getElementById('printCouponModalBody');
+                            
+                            // Format coupon data safely with fallbacks for missing values
+                            const code = coupon.code || 'Unknown';
+                            const typeName = (coupon.coupon_type_name || 'Unknown').toLowerCase();
+                            const initialBalance = coupon.initial_balance ? parseFloat(coupon.initial_balance).toFixed(2) : '0.00';
+                            const currentBalance = coupon.current_balance ? parseFloat(coupon.current_balance).toFixed(2) : '0.00';
+                            const issueDate = coupon.issue_date || 'Not set';
+                            const status = coupon.status || 'Unknown';
+                            const buyerName = coupon.buyer_name || 'Not assigned';
+                            const recipientName = coupon.recipient_name || 'Not assigned';
+                            
+                            modalBody.innerHTML = `
+                                <div class="coupon-print-container">
+                                    <div class="coupon-header">
+                                        <h3>${code}</h3>
+                                        <div class="coupon-type ${typeName}">${coupon.coupon_type_name || 'Unknown'}</div>
+                                    </div>
+                                    <div class="coupon-details">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <p><strong>Initial Balance:</strong> ${initialBalance} KD</p>
+                                                <p><strong>Current Balance:</strong> ${currentBalance} KD</p>
+                                                <p><strong>Issue Date:</strong> ${issueDate}</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <p><strong>Status:</strong> ${status}</p>
+                                                <p><strong>Buyer:</strong> ${buyerName}</p>
+                                                <p><strong>Recipient:</strong> ${recipientName}</p>
+                                            </div>
                                         </div>
                                     </div>
+                                    <div class="coupon-qr">
+                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(code)}" alt="QR Code">
+                                    </div>
                                 </div>
-                                <div class="coupon-qr">
-                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(coupon.code)}" alt="QR Code">
-                                </div>
-                            </div>
-                        `;
-                        
-                        document.getElementById('printCouponBtn').onclick = function() {
-                            const printWindow = window.open('', '_blank');
-                            printWindow.document.write(`
-                                <html>
-                                <head>
-                                    <title>Print Coupon - ${coupon.code}</title>
-                                    <style>
-                                        body { font-family: Arial, sans-serif; }
-                                        .coupon-print-container { max-width: 800px; margin: 0 auto; padding: 20px; border: 2px solid #333; }
-                                        .coupon-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-                                        .coupon-type { padding: 5px 10px; border-radius: 5px; font-weight: bold; }
-                                        .black { background-color: #000; color: #fff; }
-                                        .gold { background-color: #FFD700; color: #000; }
-                                        .silver { background-color: #C0C0C0; color: #000; }
-                                        .coupon-details { margin-bottom: 20px; }
-                                        .coupon-qr { text-align: center; }
-                                    </style>
-                                </head>
-                                <body>
-                                    ${document.querySelector('.coupon-print-container').outerHTML}
-                                    <script>
-                                        window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); }
-                                    </script>
-                                </body>
-                                </html>
-                            `);
-                            printWindow.document.close();
-                        };
-                    } else {
-                        document.getElementById('printCouponModalBody').innerHTML = '<div class="alert alert-info"><p>No coupon data available</p></div>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('printCouponModalBody').innerHTML = '<div class="alert alert-warning"><p>Unable to load coupon details.</p></div>';
-                    document.getElementById('printCouponBtn').disabled = true;
-                });
-        }
+                            `;
+                            
+                            // Setup print button functionality
+                            const printBtn = document.getElementById('printCouponBtn');
+                            if (printBtn) {
+                                printBtn.onclick = function() {
+                                    try {
+                                        const printWindow = window.open('', '_blank');
+                                        if (!printWindow) {
+                                            alert('Please allow popups for this website to print coupons.');
+                                            return;
+                                        }
+                                        
+                                        const couponContainer = document.querySelector('.coupon-print-container');
+                                        if (!couponContainer) {
+                                            alert('Print content not found. Please try again.');
+                                            return;
+                                        }
+                                        
+                                        printWindow.document.write(`
+                                            <html>
+                                            <head>
+                                                <title>Print Coupon - ${code}</title>
+                                                <style>
+                                                    body { font-family: Arial, sans-serif; }
+                                                    .coupon-print-container { max-width: 800px; margin: 0 auto; padding: 20px; border: 2px solid #333; }
+                                                    .coupon-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+                                                    .coupon-type { padding: 5px 10px; border-radius: 5px; font-weight: bold; }
+                                                    .black { background-color: #000; color: #fff; }
+                                                    .gold { background-color: #FFD700; color: #000; }
+                                                    .silver { background-color: #C0C0C0; color: #000; }
+                                                    .coupon-details { margin-bottom: 20px; }
+                                                    .coupon-qr { text-align: center; }
+                                                </style>
+                                            </head>
+                                            <body>
+                                                ${couponContainer.outerHTML}
+                                                <script>
+                                                    window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); }
+                                                </script>
+                                            </body>
+                                            </html>
+                                        `);
+                                        printWindow.document.close();
+                                    } catch (err) {
+                                        console.error('Print error:', err);
+                                        alert('An error occurred while trying to print. Please try again.');
+                                    }
+                                };
+                            }
+                        } else {
+                            document.getElementById('printCouponModalBody').innerHTML = '<div class="text-center">Loading...</div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        document.getElementById('printCouponModalBody').innerHTML = '<div class="text-center">Unable to load data</div>';
+                    });
+            }
+        });
     });
 </script>
 
