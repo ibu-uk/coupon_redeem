@@ -279,11 +279,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to fetch coupon details
     function fetchCouponDetails(couponId) {
-        fetch(`api/get_coupon.php?id=${couponId}`)
-            .then(response => response.json())
+        // Show loading indicator
+        document.getElementById('printCouponModalBody').innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading coupon data...</p>
+            </div>
+        `;
+        
+        // Add a timestamp to prevent caching and debug flag
+        const timestamp = new Date().getTime();
+        console.log(`Fetching coupon data for ID: ${couponId}`);
+        
+        // Use direct path to ensure correct URL resolution
+        const apiUrl = `${window.location.origin}/coupon%20redeem/admin/api/get_coupon.php?id=${couponId}&_=${timestamp}&debug=1`;
+        console.log('API URL:', apiUrl);
+        
+        fetch(apiUrl)
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('API Response:', data); // Debug log
+                
                 if(data && data.success && data.coupon) {
                     const coupon = data.coupon;
+                    console.log('Coupon data:', coupon); // Debug log
                     const modalBody = document.getElementById('printCouponModalBody');
                     
                     // Format coupon data safely with fallbacks for missing values
@@ -312,12 +339,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <div class="col-md-6">
                                         <p><strong>Status:</strong> ${status}</p>
                                         <p><strong>Buyer:</strong> ${buyerName}</p>
-                                        <p><strong>Recipient:</strong> ${recipientName}</p>
                                     </div>
                                 </div>
                             </div>
-                            <div class="coupon-qr">
-                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(code)}" alt="QR Code">
+                            <div class="coupon-footer text-center mt-4">
+                                <h5>Thank you for your purchase!</h5>
+                                <h6>BATO CLINIC - HAVE A NICE DAY!</h6>
+                                <p class="mt-3">For any inquiries, please contact us: 6007 2702</p>
                             </div>
                         </div>
                     `;
@@ -352,7 +380,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                             .gold { background-color: #FFD700; color: #000; }
                                             .silver { background-color: #C0C0C0; color: #000; }
                                             .coupon-details { margin-bottom: 20px; }
-                                            .coupon-qr { text-align: center; }
+                                            .coupon-footer { text-align: center; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 15px; }
+                                            .coupon-footer h5 { font-size: 16px; margin-bottom: 5px; }
+                                            .coupon-footer h6 { font-size: 14px; margin-bottom: 15px; }
+                                            .coupon-footer p { font-size: 12px; color: #555; }
                                         </style>
                                     </head>
                                     <body>
@@ -375,8 +406,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('printCouponModalBody').innerHTML = '<div class="text-center">Unable to load data</div>';
+                console.error('Error fetching coupon details:', error);
+                document.getElementById('printCouponModalBody').innerHTML = `
+                    <div class="text-center">
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i> Unable to load data
+                            <p class="small mt-2">Please try again or contact support if the issue persists.</p>
+                        </div>
+                    </div>
+                `;
             });
     }
 });

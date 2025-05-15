@@ -412,5 +412,122 @@ class RedemptionLog {
             ];
         }
     }
+    // Delete specific redemption logs by IDs and reverse amounts back to coupon balance
+    public function deleteSpecificLogsAndReverseBalance($logIds) {
+        if (empty($logIds) || !is_array($logIds)) {
+            return [
+                'success' => false,
+                'error' => 'No valid log IDs provided'
+            ];
+        }
+        
+        // Check if there's already an active transaction
+        try {
+            $inTransaction = $this->conn->inTransaction();
+        } catch (Exception $e) {
+            $inTransaction = false;
+        }
+        
+        // Only start a transaction if one isn't already active
+        $manageTransaction = !$inTransaction;
+        if ($manageTransaction) {
+            $this->conn->beginTransaction();
+        }
+        
+        try {
+            $updatedCoupons = [];
+            $totalReversed = 0;
+            $deletedCount = 0;
+            $couponAmounts = [];
+            
+            // Prepare placeholders for the IN clause
+            $placeholders = implode(',', array_fill(0, count($logIds), '?'));
+            
+            // Get all redemption logs to be deleted
+            $query = "SELECT id, coupon_id, amount, recipient_name 
+                      FROM " . $this->table_name . " 
+                      WHERE id IN (" . $placeholders . ")";
+                      
+            $stmt = $this->conn->prepare($query);
+            
+            // Bind log IDs to the query
+            foreach ($logIds as $index => $logId) {
+                $stmt->bindValue($index + 1, $logId);
+            }
+            
+            $stmt->execute();
+            
+            $recipientName = null;
+            
+            // Process each redemption log
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $logId = $row['id'];
+                $couponId = $row['coupon_id'];
+                $amount = $row['amount'];
+                
+                // Store recipient name for reference
+                if ($recipientName === null) {
+                    $recipientName = $row['recipient_name'];
+                }
+                
+                // Track total amount per coupon
+                if (!isset($couponAmounts[$couponId])) {
+                    $couponAmounts[$couponId] = 0;
+                }
+                $couponAmounts[$couponId] += $amount;
+                $totalReversed += $amount;
+                
+                // Delete each redemption log individually
+                $deleteQuery = "DELETE FROM " . $this->table_name . " WHERE id = ?";
+                $deleteStmt = $this->conn->prepare($deleteQuery);
+                $deleteStmt->bindParam(1, $logId);
+                $deleteStmt->execute();
+                $deletedCount++;
+            }
+            
+            // Now update coupon balances
+            foreach ($couponAmounts as $couponId => $amountToReverse) {
+                // Update coupon balance by adding back the redeemed amount
+                $updateQuery = "UPDATE coupons 
+                               SET current_balance = current_balance + :amount,
+                                   status = CASE 
+                                       WHEN status = 'fully_redeemed' AND (current_balance + :amount) >= initial_balance THEN 'assigned' 
+                                       WHEN status = 'fully_redeemed' AND (current_balance + :amount) < initial_balance THEN 'partially_redeemed'
+                                       ELSE status 
+                                   END 
+                               WHERE id = :coupon_id";
+                
+                $updateStmt = $this->conn->prepare($updateQuery);
+                $updateStmt->bindParam(':amount', $amountToReverse);
+                $updateStmt->bindParam(':coupon_id', $couponId);
+                $updateStmt->execute();
+                
+                $updatedCoupons[] = $couponId;
+            }
+            
+            // Only commit if we started the transaction
+            if ($manageTransaction) {
+                $this->conn->commit();
+            }
+            
+            return [
+                'success' => true,
+                'deleted_count' => $deletedCount,
+                'updated_coupons' => $updatedCoupons,
+                'total_reversed' => $totalReversed,
+                'recipient_name' => $recipientName
+            ];
+            
+        } catch (Exception $e) {
+            // Only rollback if we started the transaction
+            if ($manageTransaction) {
+                $this->conn->rollBack();
+            }
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
 }
 ?>

@@ -129,7 +129,8 @@ class Coupon {
             $this->coupon_type_name = $row['coupon_type_name'];
             $this->coupon_type_value = $row['coupon_type_value'];
             
-            return true;
+            // Return the row data
+            return $row;
         }
         
         return false;

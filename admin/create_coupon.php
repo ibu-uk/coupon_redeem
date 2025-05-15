@@ -314,14 +314,34 @@ include_once '../includes/header.php';
                     const response = JSON.parse(this.responseText);
                     
                     if (response.exists) {
-                        field.classList.add('is-invalid');
-                        field.classList.remove('is-valid');
-                        feedbackElement.textContent = `This ${fieldName} is already in use. Please use a different one.`;
-                        feedbackElement.style.display = 'block';
+                        // Instead of marking as invalid, show an informational message
+                        field.classList.remove('is-invalid');
+                        field.classList.add('is-valid');
+                        
+                        // Create or update an info element
+                        let infoId = `${field.id}_info`;
+                        let infoElement = document.getElementById(infoId);
+                        
+                        if (!infoElement) {
+                            infoElement = document.createElement('div');
+                            infoElement.id = infoId;
+                            infoElement.className = 'text-info small mt-1';
+                            field.parentNode.appendChild(infoElement);
+                        }
+                        
+                        infoElement.textContent = `Existing customer found with this ${fieldName}. The coupon will be assigned to this customer.`;
+                        infoElement.style.display = 'block';
+                        feedbackElement.style.display = 'none';
                     } else {
                         field.classList.remove('is-invalid');
                         field.classList.add('is-valid');
                         feedbackElement.style.display = 'none';
+                        
+                        // Hide info message if it exists
+                        let infoElement = document.getElementById(`${field.id}_info`);
+                        if (infoElement) {
+                            infoElement.style.display = 'none';
+                        }
                     }
                 }
             };
@@ -359,11 +379,25 @@ include_once '../includes/header.php';
             }
             
             // Check if any field has the is-invalid class
+            // Note: We no longer block submission for existing customers
+            // as the backend will handle assigning the coupon to the existing customer
             const invalidFields = form.querySelectorAll('.is-invalid');
             if (invalidFields.length > 0) {
-                event.preventDefault();
-                alert('Please fix the highlighted errors before submitting the form.');
-                invalidFields[0].focus();
+                // Check if these are actual errors or just existing customer notifications
+                let hasRealErrors = false;
+                invalidFields.forEach(field => {
+                    // Check if there's an info message for this field
+                    const infoElement = document.getElementById(`${field.id}_info`);
+                    if (!infoElement || infoElement.style.display === 'none') {
+                        hasRealErrors = true;
+                    }
+                });
+                
+                if (hasRealErrors) {
+                    event.preventDefault();
+                    alert('Please fix the highlighted errors before submitting the form.');
+                    invalidFields[0].focus();
+                }
             }
         });
     });

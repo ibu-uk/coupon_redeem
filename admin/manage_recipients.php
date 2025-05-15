@@ -494,6 +494,9 @@ include_once '../includes/header.php';
                                                 ?>
                                             </td>
                                             <td>
+                                                <a href="manage_recipient_services.php?id=<?php echo $recipient['id']; ?>&name=<?php echo urlencode($recipient['full_name']); ?>&civil_id=<?php echo urlencode($recipient['civil_id']); ?>" class="btn btn-sm btn-primary me-1" title="Manage Services">
+                                                    <i class="fas fa-list-check"></i> Services
+                                                </a>
                                                 <button type="button" class="btn btn-sm btn-danger delete-user" 
                                                         data-id="<?php echo $recipient['id']; ?>"
                                                         data-name="<?php echo $recipient['full_name']; ?>"

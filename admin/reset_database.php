@@ -93,12 +93,12 @@ if (isset($_POST['reset_database'])) {
                 $stmt = $db->prepare($query);
                 $stmt->execute();
                 
-                // Reset all coupons to available status, remove foreign key references, and restore original balance
+                // Reset all coupons to available status, remove foreign key references, and restore initial balance
                 $query = "UPDATE coupons SET 
                             buyer_id = NULL, 
                             recipient_id = NULL, 
                             status = 'available',
-                            current_balance = original_balance";
+                            current_balance = initial_balance";
                 $stmt = $db->prepare($query);
                 $stmt->execute();
                 

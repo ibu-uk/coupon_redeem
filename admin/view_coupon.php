@@ -178,7 +178,6 @@ include_once '../includes/header.php';
                                 <span class="badge bg-danger">Fully Redeemed</span>
                             <?php endif; ?>
                         </p>
-                        <p><strong>Created:</strong> <?php echo date('d M Y H:i', strtotime($coupon->created_at)); ?></p>
                     </div>
                 </div>
                 
@@ -396,8 +395,9 @@ include_once '../includes/header.php';
                     </div>
                 </div>
                 <div class="text-center mt-4">
-                    <p>Thank you for your purchase!</p>
-                    <p><small>For any inquiries, please contact us.</small></p>
+                    <h5>Thank you for your purchase!</h5>
+                    <h6>BATO CLINIC - HAVE A NICE DAY!</h6>
+                    <p class="mt-3">For any inquiries, please contact us: 6007 2702</p>
                 </div>
             </div>
             <div class="modal-footer">
