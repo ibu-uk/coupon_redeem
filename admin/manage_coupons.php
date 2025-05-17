@@ -293,8 +293,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const timestamp = new Date().getTime();
         console.log(`Fetching coupon data for ID: ${couponId}`);
         
-        // Use direct path to ensure correct URL resolution
-        const apiUrl = `${window.location.origin}/coupon%20redeem/admin/api/get_coupon.php?id=${couponId}&_=${timestamp}&debug=1`;
+        // Use relative path to ensure correct URL resolution regardless of server configuration
+        const apiUrl = `../api/get_coupon.php?id=${couponId}&_=${timestamp}&debug=1`;
         console.log('API URL:', apiUrl);
         
         fetch(apiUrl)
