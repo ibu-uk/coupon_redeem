@@ -495,6 +495,20 @@ if (isset($_POST['redeem_coupon'])) {
                     </div>
                 </div>
                 
+                <div class="mb-3">
+                    <label for="recipient_search" class="form-label">Search Existing Recipients</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="recipient_search" placeholder="Search by name, ID, mobile, or file number...">
+                        <button class="btn btn-outline-secondary" type="button" id="recipient_search_button">Search</button>
+                    </div>
+                    <small class="text-muted">Search for existing recipients to auto-fill the form</small>
+                    <div id="recipient_search_results" class="mt-2" style="display: none;">
+                        <select class="form-select" id="recipient_select" size="5">
+                            <!-- Search results will appear here -->
+                        </select>
+                    </div>
+                </div>
+                
                 <form method="post" action="" name="redeem_form">
                     <input type="hidden" name="coupon_id" value="<?php echo $couponData['id']; ?>">
                     
@@ -590,5 +604,181 @@ if (isset($_POST['redeem_coupon'])) {
     </script>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Recipient search functionality - optimized for performance
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('recipient_search');
+            const searchButton = document.getElementById('recipient_search_button');
+            const searchResults = document.getElementById('recipient_search_results');
+            const recipientSelect = document.getElementById('recipient_select');
+            
+            // Only proceed if we're on the redemption form page (with these elements)
+            if (!searchInput || !searchButton || !searchResults || !recipientSelect) {
+                return;
+            }
+            
+            // Recipient form fields
+            const recipientNameInput = document.getElementById('recipient_name');
+            const recipientCivilIdInput = document.getElementById('recipient_civil_id');
+            const recipientMobileInput = document.getElementById('recipient_mobile');
+            const recipientFileNumberInput = document.getElementById('recipient_file_number');
+            
+            // Debounce function to prevent excessive API calls
+            let searchTimeout = null;
+            function debounce(func, delay) {
+                return function() {
+                    const context = this;
+                    const args = arguments;
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => func.apply(context, args), delay);
+                };
+            }
+            
+            // Cache for search results to reduce API calls
+            const searchCache = {};
+            const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+            
+            // Search function
+            function searchRecipients() {
+                const searchTerm = searchInput.value.trim();
+                if (searchTerm.length < 3) {
+                    searchResults.style.display = 'none';
+                    return;
+                }
+                
+                // Check cache first
+                const cacheKey = `recipient:${searchTerm}`;
+                const cachedResult = searchCache[cacheKey];
+                if (cachedResult && (Date.now() - cachedResult.timestamp < CACHE_EXPIRY)) {
+                    displaySearchResults(cachedResult.data);
+                    return;
+                }
+                
+                // Clear previous results
+                recipientSelect.innerHTML = '';
+                
+                // Show loading indicator
+                recipientSelect.innerHTML = '<option disabled>Searching...</option>';
+                searchResults.style.display = 'block';
+                
+                // Make AJAX request to search API with a timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+                
+                fetch(`api/search_customers.php?search=${encodeURIComponent(searchTerm)}&type=all`, {
+                    signal: controller.signal
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        clearTimeout(timeoutId);
+                        
+                        // Cache the results
+                        searchCache[cacheKey] = {
+                            data: data,
+                            timestamp: Date.now()
+                        };
+                        
+                        displaySearchResults(data);
+                    })
+                    .catch(error => {
+                        clearTimeout(timeoutId);
+                        if (error.name === 'AbortError') {
+                            recipientSelect.innerHTML = '<option disabled>Search timed out. Please try again with a more specific search.</option>';
+                        } else {
+                            console.error('Error searching recipients:', error);
+                            recipientSelect.innerHTML = '<option disabled>Error searching recipients</option>';
+                        }
+                    });
+            }
+            
+            // Display search results
+            function displaySearchResults(data) {
+                // Clear loading indicator
+                recipientSelect.innerHTML = '';
+                
+                if (data.error) {
+                    recipientSelect.innerHTML = `<option disabled>${data.error}</option>`;
+                    return;
+                }
+                
+                if (!data.customers || data.customers.length === 0) {
+                    recipientSelect.innerHTML = '<option disabled>No recipients found</option>';
+                    return;
+                }
+                
+                // Add customers to select dropdown
+                data.customers.forEach(customer => {
+                    const option = document.createElement('option');
+                    option.value = customer.id;
+                    option.textContent = customer.display_name;
+                    option.dataset.fullName = customer.full_name;
+                    option.dataset.civilId = customer.civil_id || '';
+                    option.dataset.mobileNumber = customer.mobile_number || '';
+                    option.dataset.fileNumber = customer.file_number || '';
+                    recipientSelect.appendChild(option);
+                });
+                
+                // Show performance info for debugging
+                if (data.execution_time_ms) {
+                    const perfOption = document.createElement('option');
+                    perfOption.disabled = true;
+                    perfOption.textContent = `Found ${data.count} results in ${data.execution_time_ms}ms`;
+                    recipientSelect.appendChild(perfOption);
+                }
+            }
+            
+            // Search button click event
+            searchButton.addEventListener('click', searchRecipients);
+            
+            // Search on input with debounce (300ms)
+            searchInput.addEventListener('input', debounce(function() {
+                if (this.value.trim().length >= 3) {
+                    searchRecipients();
+                } else {
+                    searchResults.style.display = 'none';
+                }
+            }, 300));
+            
+            // Search on Enter key
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    searchRecipients();
+                }
+            });
+            
+            // Recipient selection event
+            recipientSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption.disabled) return; // Skip disabled options
+                
+                // Fill form fields with selected recipient data
+                recipientNameInput.value = selectedOption.dataset.fullName;
+                recipientCivilIdInput.value = selectedOption.dataset.civilId;
+                recipientMobileInput.value = selectedOption.dataset.mobileNumber;
+                recipientFileNumberInput.value = selectedOption.dataset.fileNumber;
+            });
+        });
+    </script>
+    
+    <style>
+        /* Recipient search styles */
+        #recipient_search_results {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+        #recipient_select {
+            width: 100%;
+        }
+        #recipient_select option {
+            padding: 8px;
+            cursor: pointer;
+        }
+        #recipient_select option:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
 </body>
 </html>

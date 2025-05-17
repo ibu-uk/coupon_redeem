@@ -151,6 +151,20 @@ include_once '../includes/header.php';
                     
                     <h4 class="mt-4 mb-3">Buyer Information</h4>
                     
+                    <div class="mb-3">
+                        <label for="customer_search" class="form-label">Search Existing Buyers</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="customer_search" placeholder="Search by name, ID, mobile, or file number...">
+                            <button class="btn btn-outline-secondary" type="button" id="search_button">Search</button>
+                        </div>
+                        <small class="text-muted">Search for existing buyers to auto-fill the form</small>
+                        <div id="search_results" class="mt-2" style="display: none;">
+                            <select class="form-select" id="customer_select" size="5">
+                                <!-- Search results will appear here -->
+                            </select>
+                        </div>
+                    </div>
+                    
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -403,6 +417,169 @@ include_once '../includes/header.php';
     });
 </script>
 
+<script>
+    // Customer search functionality - optimized for performance
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('customer_search');
+        const searchButton = document.getElementById('search_button');
+        const searchResults = document.getElementById('search_results');
+        const customerSelect = document.getElementById('customer_select');
+        
+        // Buyer form fields
+        const buyerNameInput = document.getElementById('buyer_name');
+        const buyerEmailInput = document.getElementById('buyer_email');
+        const buyerCivilIdInput = document.getElementById('buyer_civil_id');
+        const buyerMobileInput = document.getElementById('buyer_mobile');
+        const buyerFileNumberInput = document.getElementById('buyer_file_number');
+        
+        // Debounce function to prevent excessive API calls
+        let searchTimeout = null;
+        function debounce(func, delay) {
+            return function() {
+                const context = this;
+                const args = arguments;
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => func.apply(context, args), delay);
+            };
+        }
+        
+        // Cache for search results to reduce API calls
+        const searchCache = {};
+        const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+        
+        // Search function
+        function searchCustomers() {
+            const searchTerm = searchInput.value.trim();
+            if (searchTerm.length < 3) {
+                searchResults.style.display = 'none';
+                return;
+            }
+            
+            // Check cache first
+            const cacheKey = `buyer:${searchTerm}`;
+            const cachedResult = searchCache[cacheKey];
+            if (cachedResult && (Date.now() - cachedResult.timestamp < CACHE_EXPIRY)) {
+                displaySearchResults(cachedResult.data);
+                return;
+            }
+            
+            // Clear previous results
+            customerSelect.innerHTML = '';
+            
+            // Show loading indicator
+            customerSelect.innerHTML = '<option disabled>Searching...</option>';
+            searchResults.style.display = 'block';
+            
+            // Make AJAX request to search API with a timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+            
+            fetch(`../api/search_customers.php?search=${encodeURIComponent(searchTerm)}&type=buyer`, {
+                signal: controller.signal
+            })
+                .then(response => response.json())
+                .then(data => {
+                    clearTimeout(timeoutId);
+                    
+                    // Cache the results
+                    searchCache[cacheKey] = {
+                        data: data,
+                        timestamp: Date.now()
+                    };
+                    
+                    displaySearchResults(data);
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        customerSelect.innerHTML = '<option disabled>Search timed out. Please try again with a more specific search.</option>';
+                    } else {
+                        console.error('Error searching customers:', error);
+                        customerSelect.innerHTML = '<option disabled>Error searching customers</option>';
+                    }
+                });
+        }
+        
+        // Display search results
+        function displaySearchResults(data) {
+            // Clear loading indicator
+            customerSelect.innerHTML = '';
+            
+            if (data.error) {
+                customerSelect.innerHTML = `<option disabled>${data.error}</option>`;
+                return;
+            }
+            
+            if (!data.customers || data.customers.length === 0) {
+                customerSelect.innerHTML = '<option disabled>No customers found</option>';
+                return;
+            }
+            
+            // Add customers to select dropdown
+            data.customers.forEach(customer => {
+                const option = document.createElement('option');
+                option.value = customer.id;
+                option.textContent = customer.display_name;
+                option.dataset.fullName = customer.full_name;
+                option.dataset.email = customer.email || '';
+                option.dataset.civilId = customer.civil_id || '';
+                option.dataset.mobileNumber = customer.mobile_number || '';
+                option.dataset.fileNumber = customer.file_number || '';
+                customerSelect.appendChild(option);
+            });
+            
+            // Show performance info for debugging
+            if (data.execution_time_ms) {
+                const perfOption = document.createElement('option');
+                perfOption.disabled = true;
+                perfOption.textContent = `Found ${data.count} results in ${data.execution_time_ms}ms`;
+                customerSelect.appendChild(perfOption);
+            }
+        }
+        
+        // Search button click event
+        searchButton.addEventListener('click', searchCustomers);
+        
+        // Search on input with debounce (300ms)
+        searchInput.addEventListener('input', debounce(function() {
+            if (this.value.trim().length >= 3) {
+                searchCustomers();
+            } else {
+                searchResults.style.display = 'none';
+            }
+        }, 300));
+        
+        // Search on Enter key
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchCustomers();
+            }
+        });
+        
+        // Customer selection event
+        customerSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.disabled) return; // Skip disabled options
+            
+            // Fill form fields with selected customer data
+            buyerNameInput.value = selectedOption.dataset.fullName;
+            buyerEmailInput.value = selectedOption.dataset.email;
+            buyerCivilIdInput.value = selectedOption.dataset.civilId;
+            buyerMobileInput.value = selectedOption.dataset.mobileNumber;
+            buyerFileNumberInput.value = selectedOption.dataset.fileNumber;
+            
+            // Trigger validation for filled fields
+            [buyerNameInput, buyerEmailInput, buyerCivilIdInput, buyerMobileInput, buyerFileNumberInput].forEach(input => {
+                if (input.value) {
+                    const event = new Event('blur');
+                    input.dispatchEvent(event);
+                }
+            });
+        });
+    });
+</script>
+
 <style>
     .coupon-type-card {
         cursor: pointer;
@@ -426,6 +603,23 @@ include_once '../includes/header.php';
     .badge-silver {
         background-color: #C0C0C0;
         color: #000;
+    }
+    
+    /* Customer search styles */
+    #search_results {
+        max-height: 200px;
+        overflow-y: auto;
+        margin-bottom: 15px;
+    }
+    #customer_select {
+        width: 100%;
+    }
+    #customer_select option {
+        padding: 8px;
+        cursor: pointer;
+    }
+    #customer_select option:hover {
+        background-color: #f8f9fa;
     }
 </style>
 
