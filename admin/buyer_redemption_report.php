@@ -467,7 +467,14 @@ include_once '../includes/header.php';
                                             <strong><?php echo number_format($log['remaining_balance'], 2); ?> KD</strong>
                                         </td>
                                         <td>
-                                            <?php echo $log['redeemer_name']; ?>
+                                            <div class="d-flex flex-column">
+                                                <div><?php echo $log['redeemer_name']; ?></div>
+                                                <div class="mt-2 no-print">
+                                                    <a href="print_recipient_report.php?coupon_id=<?php echo $couponId; ?>&recipient_civil_id=<?php echo urlencode($log['recipient_civil_id']); ?>&format=print" target="_blank" class="btn btn-sm btn-primary">
+                                                        <i class="fas fa-print"></i> Print
+                                                    </a>
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

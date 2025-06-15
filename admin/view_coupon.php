@@ -200,29 +200,7 @@ include_once '../includes/header.php';
             </div>
         </div>
         
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Buyer Information</h5>
-            </div>
-            <div class="card-body">
-                <?php if($buyer): ?>
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Name:</strong> <?php echo $buyer->full_name; ?></p>
-                        <p><strong>Email:</strong> <?php echo $buyer->email; ?></p>
-                        <p><strong>Civil ID:</strong> <?php echo $buyer->civil_id; ?></p>
-                    </div>
-                    <div class="col-md-6">
-                        <p><strong>Mobile:</strong> <?php echo $buyer->mobile_number; ?></p>
-                        <p><strong>File Number:</strong> <?php echo $buyer->file_number; ?></p>
-                        <p><strong>Purchase Date:</strong> <?php echo $buyer->purchase_date ? date('d M Y', strtotime($buyer->purchase_date)) : 'N/A'; ?></p>
-                    </div>
-                </div>
-                <?php else: ?>
-                <p class="text-center text-muted">This coupon has not been assigned to a buyer yet.</p>
-                <?php endif; ?>
-            </div>
-        </div>
+        <!-- Buyer Information section removed as requested -->
         
         <div class="card mt-4">
             <div class="card-header">
